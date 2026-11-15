@@ -1,0 +1,7 @@
+JANUS
+Copyright 2026 Christopher Onyiuke
+
+This product includes software developed as part of the Jane Street protocol
+emulator ASIC competition, built on the Tiny Tapeout CMOS5L Verilog template.
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).

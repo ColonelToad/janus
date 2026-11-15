@@ -1,0 +1,43 @@
+.DS_Store
+.idea
+*.vcd
+*.fst
+*.fst.hier
+runs
+tt_submission
+src/user_config.json
+src/config_merged.json
+test/sim_build
+test/__pycache__/
+test/results.xml
+test/gate_level_netlist.v
+
+# C++ build artifacts
+build/
+cmake-build-*/
+compile_commands.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.pixi/
+
+# Simulation artifacts
+obj_dir/
+*.ghw
+*.lxt2
+*.saif
+
+# Toolchain outputs
+*.bin
+*.hex
+*.lst
+*.map
+*.mem
+
+# Local caches
+.cache/
