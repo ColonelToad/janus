@@ -28,12 +28,44 @@ BOOT_DELAY = 2  # RTL cycles of pipe fill before the first instruction retires
 ISA = default_isa()
 
 
+def find_memory(dut, keyword: str):
+    """Locate an SRAM storage array by instance keyword.
+
+    RTL simulation exposes ``u_imem.u_sram.mem``; the gate-level netlist uses
+    the PDK model's ``i_SRAM_1P_behavioral_bm_bist.memory``. Searching the
+    hierarchy keeps the tests independent of the exact netlist structure.
+    """
+
+    def walk(handle, path: str, depth: int):
+        if depth > 8:
+            return None
+        try:
+            items = list(handle._items())
+        except Exception:
+            return None
+        for name, child in items:
+            child_path = f"{path}.{name}" if path else name
+            if name in ("mem", "memory") and keyword in path:
+                return child
+            found = walk(child, child_path, depth + 1)
+            if found is not None:
+                return found
+        return None
+
+    memory = walk(dut, "", 0)
+    if memory is None:
+        raise AssertionError(f"no {keyword} storage array found in the design")
+    return memory
+
+
 def load_image(dut, program: Program) -> None:
     """Preload instruction and data memory through the behavioural models."""
+    imem = find_memory(dut, "imem")
+    dmem = find_memory(dut, "dmem")
     for i in range(1024):
-        dut.user_project.u_imem.u_sram.mem[i].value = program.words[i] if i < len(program.words) else 0
+        imem[i].value = program.words[i] if i < len(program.words) else 0
     for i in range(512):
-        dut.user_project.u_dmem.u_sram.mem[i].value = 0
+        dmem[i].value = 0
 
 
 def set_entry(dut, context: int, pc: int) -> None:
