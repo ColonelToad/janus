@@ -118,7 +118,7 @@ package isa_pkg;
   localparam int unsigned FMT_SYS_OPCODE_LSB = 24;
 
   // Memory map
-  localparam logic [31:0] IMEM_WORDS = 32'd512;
+  localparam logic [31:0] IMEM_WORDS = 32'd1024;
   localparam logic [31:0] DMEM_BYTES = 32'd2048;
   localparam logic [31:0] IO_BASE = 32'h00008000;
   localparam logic [31:0] IO_BYTES = 32'd256;

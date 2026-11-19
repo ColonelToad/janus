@@ -132,4 +132,4 @@ def test_branch_range_rejected(isa):
 
 def test_program_too_large_rejected(isa):
     with pytest.raises(AsmError, match="instruction memory"):
-        assemble(".org 512\nNOP\n", isa)
+        assemble(".org 1024\nNOP\n", isa)

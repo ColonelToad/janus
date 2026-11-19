@@ -112,8 +112,8 @@ The global cycle counter is readable at `CYCLE`. `WAITREL rs` stalls the issuing
 
 | Region | Base | Size | Notes |
 | --- | --- | --- | --- |
-| Instruction | `0x00000000` | 512 words | writable only by the bootloader |
-| Data | `0x00000000` | 2048 bytes | 512 words, provisional; final size follows the area report |
+| Instruction | `0x00000000` | 1024 words | RM_IHPSG13_1P_1024x32 macro; writable only by the bootloader |
+| Data | `0x00000000` | 2048 bytes | RM_IHPSG13_1P_512x32 macro; 512 words |
 | I/O | `0x00008000` | 256 bytes | memory-mapped registers |
 
 ### I/O registers

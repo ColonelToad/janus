@@ -36,10 +36,27 @@ Target: 8x4 tiles (~1.0 mm²) on IHP SG13CMOS5L, using Tiny Tapeout's `ttihp27a`
 - Per-context state: PC, register file, wait state and deadline, halted flag.
 - Shared state: ALU, decoder, instruction memory, data memory, pin registers, cycle
   counter.
-- 512x32-bit instruction memory (2 KB), writable only by the bootloader.
-- Data memory starts at 512x32 bits (2 KB); the final size follows the area report.
+- Instruction memory: IHP `RM_IHPSG13_1P_1024x32` SRAM (1024 words, 4 KB). It is
+  written only by the bootloader and read by the fetch stage.
+- Data memory: IHP `RM_IHPSG13_1P_512x32` SRAM (512 words, 2 KB).
+- The two macros cost about 220k µm² of the ~1.0 mm² tile, leaving most of the area for
+  logic. They follow Tiny Tapeout's official
+  [`ttihp-cmos5l-sram-example`](https://github.com/TinyTapeout/ttihp-cmos5l-sram-example)
+  integration (black-box declaration, behavioural simulation model, macro placement and
+  the `ExtendPowerStripes` PDN step).
 - No caches and no interrupts in the MVP. Polling and timed waits are enough for UART,
   SPI and I2C.
+
+The SRAMs are single-port with registered reads. Instruction fetch is therefore a
+two-stage pipeline per context: a context presents its next PC on its slot, and executes
+the instruction fetched two cycles earlier on its next slot. That still yields one issued
+instruction per context per two cycles (1 IPC across both contexts). Load data arrives one
+cycle after the address, which is hidden by the same slot spacing with a forwarding path
+to the next instruction. The ISS models the architectural result, and the lockstep harness
+accounts for the startup bubbles.
+
+The bootloader owns both SRAM ports while the core is held. It loads code and initial data,
+sets both context PCs, and releases the core.
 
 The first core will be a simple multi-cycle machine that issues at most one instruction
 per context slot. This keeps the ISS model exact: one instruction per slot, memory access
