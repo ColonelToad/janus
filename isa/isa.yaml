@@ -1,0 +1,427 @@
+# JANUS instruction set architecture
+#
+# This file is the single source of truth for the ISA. The assembler, the
+# instruction-set simulator, the RTL package and the documentation are all
+# derived from it. Do not hand-edit generated files.
+#
+# Version history:
+#   0.1.0  initial encoding: ALU, memory, control flow, timed waits
+
+name: JANUS
+version: 0.1.0
+description: >
+  A small, deterministic 32-bit ISA for software-defined protocol emulation.
+  Two hardware contexts are issued on alternating cycles, so firmware can
+  place pin transitions on exact cycles and run independent protocol engines
+  side by side.
+
+word_bits: 32
+address_bits: 32
+instruction_bytes: 4
+
+registers:
+  count: 16
+  width: 32
+  zero: 0          # r0 always reads as zero; writes are discarded
+  link: 15         # CALL writes its return address here by default
+  names: [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15]
+
+contexts:
+  count: 2
+  schedule: >
+    Strict barrel interleave. Context 0 may issue on even cycles and context 1
+    on odd cycles. A stalled context does not give its slot to the other
+    context, so the timing of every issued instruction is predictable.
+
+# ---------------------------------------------------------------------------
+# Encoding formats
+#
+# Each format maps field names to inclusive bit ranges [msb, lsb]. The assembler
+# and the RTL decode logic are generated from these ranges.
+# ---------------------------------------------------------------------------
+formats:
+  R:
+    fields:
+      opcode: [31, 24]
+      rd:     [23, 20]
+      rs1:    [19, 16]
+      rs2:    [15, 12]
+      funct:  [11, 0]
+  I:
+    fields:
+      opcode: [31, 24]
+      rd:     [23, 20]
+      rs1:    [19, 16]
+      imm16:  [15, 0]
+  IS:
+    fields:
+      opcode: [31, 24]
+      rd:     [23, 20]
+      rs1:    [19, 16]
+      shamt:  [12, 8]
+  M:
+    fields:
+      opcode: [31, 24]
+      rd:     [23, 20]
+      rs1:    [19, 16]
+      imm16:  [15, 0]
+  B:
+    fields:
+      opcode: [31, 24]
+      rs1:    [23, 20]
+      rs2:    [19, 16]
+      imm16:  [15, 0]
+  J:
+    fields:
+      opcode: [31, 24]
+      rd:     [23, 20]
+      imm20:  [19, 0]
+  SYS:
+    fields:
+      opcode: [31, 24]
+
+# ---------------------------------------------------------------------------
+# Instructions
+#
+# operand kinds:
+#   reg     - 4-bit register number
+#   imm     - immediate literal; `ext` is sign or zero
+#   shamt   - 5-bit shift amount
+#   label   - branch/jump target, encoded as a PC-relative word offset
+#             (target_word - current_word). `bits` selects imm16 or imm20.
+#   memoff  - memory displacement, written as `imm(base)` in assembly
+#   membase - base register of a memory operand
+#
+# `write: true` marks the destination register for dataflow tooling.
+# ---------------------------------------------------------------------------
+instructions:
+  # -- register/register ALU ------------------------------------------------
+  - name: ADD
+    opcode: 0x00
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 + rs2
+  - name: SUB
+    opcode: 0x01
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 - rs2
+  - name: AND
+    opcode: 0x02
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 & rs2
+  - name: OR
+    opcode: 0x03
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 | rs2
+  - name: XOR
+    opcode: 0x04
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 ^ rs2
+  - name: SLL
+    opcode: 0x05
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 << (rs2 & 31)
+  - name: SRL
+    opcode: 0x06
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 >> (rs2 & 31), logical
+  - name: SRA
+    opcode: 0x07
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 >> (rs2 & 31), arithmetic
+  - name: SLT
+    opcode: 0x08
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = (signed)rs1 < (signed)rs2 ? 1 else 0
+  - name: SLTU
+    opcode: 0x09
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: rd = rs1 < rs2 ? 1 else 0, unsigned
+  - name: NOT
+    opcode: 0x0A
+    format: R
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}]
+    semantics: rd = ~rs1
+
+  # -- immediate ALU --------------------------------------------------------
+  - name: ADDI
+    opcode: 0x10
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: sign}]
+    semantics: rd = rs1 + sign_extend(imm16)
+  - name: ANDI
+    opcode: 0x11
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: zero}]
+    semantics: rd = rs1 & zero_extend(imm16)
+  - name: ORI
+    opcode: 0x12
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: zero}]
+    semantics: rd = rs1 | zero_extend(imm16)
+  - name: XORI
+    opcode: 0x13
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: zero}]
+    semantics: rd = rs1 ^ zero_extend(imm16)
+  - name: SLTI
+    opcode: 0x17
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: sign}]
+    semantics: rd = (signed)rs1 < (signed)sign_extend(imm16) ? 1 else 0
+  - name: SLTIU
+    opcode: 0x18
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: imm16, kind: imm, ext: sign}]
+    semantics: rd = rs1 < sign_extend(imm16) ? 1 else 0, unsigned
+  - name: LI
+    opcode: 0x19
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: imm, ext: zero}]
+    semantics: rd = zero_extend(imm16)
+  - name: LUI
+    opcode: 0x1A
+    format: I
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: imm, ext: zero}]
+    semantics: rd = zero_extend(imm16) << 16
+
+  # -- shift immediate ------------------------------------------------------
+  - name: SLLI
+    opcode: 0x14
+    format: IS
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: shamt, kind: shamt}]
+    semantics: rd = rs1 << shamt
+  - name: SRLI
+    opcode: 0x15
+    format: IS
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: shamt, kind: shamt}]
+    semantics: rd = rs1 >> shamt, logical
+  - name: SRAI
+    opcode: 0x16
+    format: IS
+    operands: [{field: rd, kind: reg, write: true}, {field: rs1, kind: reg}, {field: shamt, kind: shamt}]
+    semantics: rd = rs1 >> shamt, arithmetic
+
+  # -- loads ----------------------------------------------------------------
+  - name: LB
+    opcode: 0x20
+    format: M
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: rd = sign_extend(byte at rs1 + sign_extend(imm16))
+  - name: LH
+    opcode: 0x21
+    format: M
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: rd = sign_extend(halfword at rs1 + sign_extend(imm16))
+  - name: LW
+    opcode: 0x22
+    format: M
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: rd = word at rs1 + sign_extend(imm16)
+  - name: LBU
+    opcode: 0x23
+    format: M
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: rd = zero_extend(byte at rs1 + sign_extend(imm16))
+  - name: LHU
+    opcode: 0x24
+    format: M
+    operands: [{field: rd, kind: reg, write: true}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: rd = zero_extend(halfword at rs1 + sign_extend(imm16))
+
+  # -- stores ---------------------------------------------------------------
+  - name: SB
+    opcode: 0x28
+    format: M
+    operands: [{field: rd, kind: reg}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: byte at rs1 + sign_extend(imm16) = rd[7:0]
+  - name: SH
+    opcode: 0x29
+    format: M
+    operands: [{field: rd, kind: reg}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: halfword at rs1 + sign_extend(imm16) = rd[15:0]
+  - name: SW
+    opcode: 0x2A
+    format: M
+    operands: [{field: rd, kind: reg}, {field: imm16, kind: memoff}, {field: rs1, kind: membase}]
+    semantics: word at rs1 + sign_extend(imm16) = rd
+
+  # -- branches -------------------------------------------------------------
+  - name: BEQ
+    opcode: 0x30
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if rs1 == rs2 then pc = pc + imm16
+  - name: BNE
+    opcode: 0x31
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if rs1 != rs2 then pc = pc + imm16
+  - name: BLT
+    opcode: 0x32
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if (signed)rs1 < (signed)rs2 then pc = pc + imm16
+  - name: BGE
+    opcode: 0x33
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if (signed)rs1 >= (signed)rs2 then pc = pc + imm16
+  - name: BLTU
+    opcode: 0x34
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if rs1 < rs2 then pc = pc + imm16, unsigned
+  - name: BGEU
+    opcode: 0x35
+    format: B
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}, {field: imm16, kind: label, bits: 16}]
+    semantics: if rs1 >= rs2 then pc = pc + imm16, unsigned
+
+  # -- jumps ----------------------------------------------------------------
+  - name: JMP
+    opcode: 0x38
+    format: J
+    operands: [{field: imm20, kind: label, bits: 20}]
+    semantics: pc = pc + imm20
+  - name: CALL
+    opcode: 0x39
+    format: J
+    operands: [{field: rd, kind: reg, write: true, default: 15}, {field: imm20, kind: label, bits: 20}]
+    semantics: rd = pc + 1; pc = pc + imm20
+  - name: JR
+    opcode: 0x3B
+    format: R
+    operands: [{field: rs1, kind: reg}]
+    semantics: pc = rs1
+
+  # -- timed waits (the core primitive for deterministic I/O) ---------------
+  - name: WAITABS
+    opcode: 0x40
+    format: I
+    operands: [{field: rs1, kind: reg}]
+    semantics: >
+      stall this context until the global cycle counter is >= rs1. The other
+      context continues to issue on its own slots.
+  - name: WAITREL
+    opcode: 0x41
+    format: I
+    operands: [{field: rs1, kind: reg}]
+    semantics: >
+      stall this context until the global cycle counter is >= the cycle in
+      which this instruction issued plus rs1.
+  - name: WAITPIN
+    opcode: 0x42
+    format: R
+    operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}]
+    semantics: >
+      stall this context until any pin selected by the mask in rs1 records an
+      edge, or until the cycle counter is >= rs2 when rs2 is non-zero. Edge
+      status remains readable in PIN_EDGE and is cleared by writing one to it.
+
+  # -- system ---------------------------------------------------------------
+  - name: NOP
+    opcode: 0x50
+    format: SYS
+    operands: []
+    semantics: do nothing for one slot
+  - name: HALT
+    opcode: 0x51
+    format: SYS
+    operands: []
+    semantics: stop issuing this context; the other context keeps running
+
+# ---------------------------------------------------------------------------
+# Pseudo-instructions and aliases
+#
+# The assembler expands these before encoding. Expansion is textual and
+# operand substitutions use {0}, {1}, ... in the given order.
+# ---------------------------------------------------------------------------
+aliases:
+  - {name: MOV,  operands: 2, expands: ["ADD {0}, {1}, r0"]}
+  - {name: NEG,  operands: 2, expands: ["SUB {0}, r0, {1}"]}
+  - {name: SEQZ, operands: 2, expands: ["SLTIU {0}, {1}, 1"]}
+  - {name: SNEZ, operands: 2, expands: ["SLTU {0}, r0, {1}"]}
+  - {name: BEQZ, operands: 2, expands: ["BEQ {0}, r0, {1}"]}
+  - {name: BNEZ, operands: 2, expands: ["BNE {0}, r0, {1}"]}
+  - {name: J,    operands: 1, expands: ["JMP {0}"]}
+  - {name: RET,  operands: 0, expands: ["JR r15"]}
+  - name: LI32
+    operands: 2
+    expands:
+      - "LUI {0}, ((({1}) >> 16) & 0xFFFF)"
+      - "ORI {0}, {0}, (({1}) & 0xFFFF)"
+
+# ---------------------------------------------------------------------------
+# Memory and I/O map
+#
+# Byte addresses for loads and stores. The instruction memory is word addressed
+# internally and is not reachable through loads or stores.
+# ---------------------------------------------------------------------------
+memory:
+  instruction:
+    base: 0x00000000
+    size_words: 512
+    note: writable only by the bootloader
+  data:
+    base: 0x00000000
+    size_bytes: 2048
+    note: 512 words, provisional; final size follows the area report
+  io:
+    base: 0x00008000
+    size_bytes: 256
+    registers:
+      - {name: CYCLE,      offset: 0x00, access: ro,  desc: "free-running 32-bit cycle counter; wraps about every 86 s at 50 MHz"}
+      - {name: PIN_IN,     offset: 0x04, access: ro,  desc: "synchronised input levels, bit n = pin n"}
+      - {name: PIN_OUT,    offset: 0x08, access: rw,  desc: "output levels for output-capable pins"}
+      - {name: PIN_DIR,    offset: 0x0C, access: rw,  desc: "direction, 1 = output, for bidirectional pins"}
+      - {name: PIN_SET,    offset: 0x10, access: wo,  desc: "write 1 to drive a pin high"}
+      - {name: PIN_CLR,    offset: 0x14, access: wo,  desc: "write 1 to drive a pin low"}
+      - {name: PIN_XOR,    offset: 0x18, access: wo,  desc: "write 1 to toggle a pin"}
+      - {name: PIN_EDGE,   offset: 0x1C, access: rw1c, desc: "sticky edge flags, one bit per input-capable pin; write 1 to clear"}
+      - {name: CTX_ID,     offset: 0x20, access: ro,  desc: "issuing context number, 0 or 1"}
+      - {name: BOOT_REQ,   offset: 0x24, access: wo,  desc: "write 0x4A4E5553 to re-enter the UART bootloader"}
+
+# Pin numbering used by PIN_* registers and firmware conventions.
+pins:
+  - {index: 0,  source: "ui_in[0]",  direction: input}
+  - {index: 1,  source: "ui_in[1]",  direction: input}
+  - {index: 2,  source: "ui_in[2]",  direction: input}
+  - {index: 3,  source: "ui_in[3]",  direction: input}
+  - {index: 4,  source: "ui_in[4]",  direction: input}
+  - {index: 5,  source: "ui_in[5]",  direction: input}
+  - {index: 6,  source: "ui_in[6]",  direction: input}
+  - {index: 7,  source: "ui_in[7]",  direction: input}
+  - {index: 8,  source: "uo_out[0]", direction: output}
+  - {index: 9,  source: "uo_out[1]", direction: output}
+  - {index: 10, source: "uo_out[2]", direction: output}
+  - {index: 11, source: "uo_out[3]", direction: output}
+  - {index: 12, source: "uo_out[4]", direction: output}
+  - {index: 13, source: "uo_out[5]", direction: output}
+  - {index: 14, source: "uo_out[6]", direction: output}
+  - {index: 15, source: "uo_out[7]", direction: output}
+  - {index: 16, source: "uio[0]",    direction: bidir}
+  - {index: 17, source: "uio[1]",    direction: bidir}
+  - {index: 18, source: "uio[2]",    direction: bidir}
+  - {index: 19, source: "uio[3]",    direction: bidir}
+  - {index: 20, source: "uio[4]",    direction: bidir}
+  - {index: 21, source: "uio[5]",    direction: bidir}
+  - {index: 22, source: "uio[6]",    direction: bidir}
+  - {index: 23, source: "uio[7]",    direction: bidir}
+
+boot:
+  uart_pins: [16, 17]   # uio[0] = host TX -> chip RX, uio[1] = chip TX -> host RX
+  magic: 0x4A414E5553   # "JANUS"; sent as a little-endian byte stream
+  note: >
+    The bootloader listens at a fixed baud, loads an image into instruction
+    memory, checks it, sets both context PCs from the image header and
+    releases the core.

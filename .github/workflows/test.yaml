@@ -1,6 +1,33 @@
 name: test
 on: [push, workflow_dispatch]
 jobs:
+  toolchain:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Python packages
+        run: pip install -r sw/requirements.txt
+
+      - name: Check generated ISA files are current
+        run: python tools/gen_isa.py --check
+
+      - name: Run assembler and ISS tests
+        run: python -m pytest sw/tests -q
+
+      - name: Assemble the example programs
+        run: |
+          python -m janus asm programs/hello.s -o /tmp/hello.bin
+          python -m janus asm programs/two_contexts.s -o /tmp/two_contexts.bin
+        env:
+          PYTHONPATH: sw
+
   test:
     runs-on: ubuntu-24.04
     steps:

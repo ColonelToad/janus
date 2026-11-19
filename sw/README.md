@@ -1,14 +1,27 @@
 # `sw/`
 
-Host-side and build-time toolchain.
+Host-side toolchain.
 
-Planned contents:
+- `janus/isa.py` — loads `isa/isa.yaml` and exposes instruction/format tables
+- `janus/assembler.py` — two-pass assembler with labels, expressions, directives and aliases
+- `janus/iss.py` — cycle-accurate two-context instruction-set simulator
+- `janus/__main__.py` — `asm`, `run`, `disasm` and `isa` commands
+- `tests/` — pytest suites for the ISA, assembler and ISS
 
-- `asm/` — `jasm`, the C++20 assembler
-- `iss/` — `jrun`, the cycle-accurate instruction-set simulator
-- `cosim/` — `jcosim`, Verilator + ISS lockstep harness
-- `lib/` — reusable assembly routines (UART, SPI, I2C, ...)
-- `host/` — program loader for the RP2040 demo board
+The Python implementation is the reference toolchain. It integrates directly with cocotb
+and keeps the feedback loop short. A C++ or Rust component will only be added where a
+concrete need (speed or an existing library) justifies it.
 
-A short-lived Python prototype for ISA validation will live here during the first
-milestone.
+Usage from the repository root:
+
+```sh
+pip install -r sw/requirements.txt
+export PYTHONPATH=sw
+python -m janus run programs/hello.s
+python -m pytest sw/tests
+```
+
+Planned additions:
+
+- `host/` — program loader for the RP2350 demo board
+- `lib/` — reusable assembly macros (UART, SPI, I2C, ...)

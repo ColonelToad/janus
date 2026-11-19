@@ -18,16 +18,15 @@ JANUS is a small custom processor built for cycle-accurate pin timing. Firmware 
 24 digital I/O pins directly, so new protocols can be added after fabrication instead of
 being baked into fixed UART/SPI/I2C blocks.
 
-Planned architecture:
-
-- 32-bit custom ISA, 16 registers, 512x32-bit instruction SRAM
-- Two hardware contexts for concurrent protocol engines
-- Global cycle counter with timestamped wait instructions
-- Per-pin direction control, edge detection, shift engines and CRC assist
+- 32-bit custom ISA, 16 registers per context, 512x32-bit instruction memory
+- Two hardware contexts issued on alternating cycles for concurrent protocol engines
+- Global 32-bit cycle counter with `WAITREL`, `WAITABS` and `WAITPIN` instructions
+- Per-pin direction control and sticky edge detection
 - UART bootloader so a host MCU can load programs after reset
 
-See [architecture.md](architecture.md) for details. The design is in early bring-up; this
-datasheet will be updated as the core and toolchain land.
+The ISA is defined once in [`isa/isa.yaml`](../isa/isa.yaml) and drives the assembler, the
+instruction-set simulator, the RTL constants and the [ISA reference](isa.md). See
+[architecture.md](architecture.md) for the design and timing model.
 
 ## How to test
 
@@ -38,10 +37,22 @@ cd test
 make
 ```
 
-Programs will be assembled with `jasm` and run on the `jrun` instruction-set simulator once
-the toolchain lands.
+Run the assembler and ISS tests:
+
+```sh
+pip install -r sw/requirements.txt
+python -m pytest sw/tests
+```
+
+Assemble and run an example:
+
+```sh
+export PYTHONPATH=sw
+python -m janus run programs/hello.s
+python -m janus run programs/two_contexts.s --entry1 ctx1 --cycles 200
+```
 
 ## External hardware
 
-None required for the core design. The final protocol demos may use the Tiny Tapeout ETR
-demo board and a Pmod for level shifting or pull-ups.
+None required for the core design. The protocol demos use the Tiny Tapeout demo board; I2C
+demos may use a Pmod for pull-ups.

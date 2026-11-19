@@ -2,8 +2,11 @@
 
 Build-time code generation and developer utilities.
 
-Planned contents:
+- `gen_isa.py` — generates `src/isa_pkg.sv` and `docs/isa.md` from `isa/isa.yaml`
 
-- `isa_gen.py` — generates the SystemVerilog package, C++ header and ISA reference from
-  `isa/isa.yaml`
-- helper scripts for traces, coverage and CI checks
+```sh
+python tools/gen_isa.py          # regenerate
+python tools/gen_isa.py --check  # verify committed files are current (CI)
+```
+
+Planned additions: trace and coverage helpers.
