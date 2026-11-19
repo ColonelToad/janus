@@ -15,7 +15,7 @@ be added after fabrication.
 | | |
 |---|---|
 | Process | IHP SG13CMOS5L via Tiny Tapeout |
-| Area | 6x4 tiles (~0.7 mm²), with 8x4 as an upgrade path |
+| Area | 8x4 tiles (~1.0 mm²) |
 | Clock | 50 MHz target (20 ns period) |
 | I/O | 8 inputs, 8 outputs, 8 bidirectional |
 | Top module | `tt_um_coloneltoad_janus` |
@@ -65,8 +65,8 @@ stays green.
 ## Continuous integration
 
 The `test` workflow runs on every push. The `gds` and `docs` workflows are manual
-(`workflow_dispatch`) for now so that private-repo Actions minutes are spent only on
-deliberate hardening runs.
+(`workflow_dispatch`) so that hardening runs happen deliberately at milestones rather than
+on every commit.
 
 ## Links
 

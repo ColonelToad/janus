@@ -2,6 +2,8 @@
 
 Status: working draft for the bootstrap milestone. Details will change as the core is built.
 
+Target: 8x4 tiles (~1.0 mm²) on IHP SG13CMOS5L, using Tiny Tapeout's `ttihp27a` flow.
+
 ## Goals
 
 1. **Reprogrammable after fabrication.** No fixed protocol blocks; protocols live in firmware.
