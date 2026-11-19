@@ -325,8 +325,8 @@ instructions:
     operands: [{field: rs1, kind: reg}, {field: rs2, kind: reg}]
     semantics: >
       stall this context until any pin selected by the mask in rs1 records an
-      edge, or until the cycle counter is >= rs2 when rs2 is non-zero. Edge
-      status remains readable in PIN_EDGE and is cleared by writing one to it.
+      edge, or until rs2 cycles have elapsed when rs2 is non-zero. Edge status
+      remains readable in PIN_EDGE and is cleared by writing one to it.
 
   # -- system ---------------------------------------------------------------
   - name: NOP

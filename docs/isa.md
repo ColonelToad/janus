@@ -90,7 +90,7 @@ The global cycle counter is readable at `CYCLE`. `WAITREL rs` stalls the issuing
 | `JR` | `0x3B` | `R` | `jr rs1` | pc = rs1 |
 | `WAITABS` | `0x40` | `I` | `waitabs rs1` | stall this context until the global cycle counter is >= rs1. The other context continues to issue on its own slots. |
 | `WAITREL` | `0x41` | `I` | `waitrel rs1` | stall this context until the global cycle counter is >= the cycle in which this instruction issued plus rs1. |
-| `WAITPIN` | `0x42` | `R` | `waitpin rs1, rs2` | stall this context until any pin selected by the mask in rs1 records an edge, or until the cycle counter is >= rs2 when rs2 is non-zero. Edge status remains readable in PIN_EDGE and is cleared by writing one to it. |
+| `WAITPIN` | `0x42` | `R` | `waitpin rs1, rs2` | stall this context until any pin selected by the mask in rs1 records an edge, or until rs2 cycles have elapsed when rs2 is non-zero. Edge status remains readable in PIN_EDGE and is cleared by writing one to it. |
 | `NOP` | `0x50` | `SYS` | `nop` | do nothing for one slot |
 | `HALT` | `0x51` | `SYS` | `halt` | stop issuing this context; the other context keeps running |
 

@@ -40,6 +40,12 @@ class Context:
     wait_has_deadline: bool = False
     wait_pin_mask: int = 0
     cycles_issued: int = 0
+    # The data SRAM returns one cycle after the address, so a load reaches the
+    # register file at the start of the load cycle + 2. Architectural results
+    # are unchanged, but cycle-by-cycle lockstep with the RTL needs the delay.
+    pending_rd: int | None = None
+    pending_val: int = 0
+    pending_commit: int = 0
 
     def read(self, index: int) -> int:
         return 0 if index == 0 else self.regs[index]
@@ -64,7 +70,7 @@ class TraceEvent:
 class Machine:
     """A two-context JANUS machine."""
 
-    def __init__(self, isa: ISA, program: Program | None = None, *, entry0: int = 0, entry1: int | None = None):
+    def __init__(self, isa: ISA, program: Program | None = None, *, entry0: int = 0, entry1: int | None = None, start_cycle: int = 0):
         self.isa = isa
         self.data_size = int(isa.memory.get("data", {}).get("size_bytes", 2048))
         self.imem_size = int(isa.memory.get("instruction", {}).get("size_words", 512))
@@ -85,7 +91,7 @@ class Machine:
         self._current_mem_writes: list[tuple[int, int]] = []
 
         if program is not None:
-            self.load_program(program, entry0=entry0, entry1=entry1)
+            self.load_program(program, entry0=entry0, entry1=entry1, start_cycle=start_cycle)
 
     # -- construction / loading -----------------------------------------
     @classmethod
@@ -95,7 +101,7 @@ class Machine:
         program = assemble(source, isa)
         return cls(isa, program, **kwargs)
 
-    def load_program(self, program: Program, *, entry0: int = 0, entry1: int | None = None) -> None:
+    def load_program(self, program: Program, *, entry0: int = 0, entry1: int | None = None, start_cycle: int = 0) -> None:
         if len(program.words) > self.imem_size:
             raise IssError(f"program is {len(program.words)} words, memory holds {self.imem_size}")
         self.imem = list(program.words) + [0] * (self.imem_size - len(program.words))
@@ -107,13 +113,16 @@ class Machine:
             context.wait_has_deadline = False
             context.wait_pin_mask = 0
             context.cycles_issued = 0
+            context.pending_rd = None
+            context.pending_val = 0
+            context.pending_commit = 0
         self.contexts[0].pc = entry0
         if entry1 is None:
             if len(self.contexts) > 1:
                 self.contexts[1].halted = True
         else:
             self.contexts[1].pc = entry1
-        self.cycle = 0
+        self.cycle = start_cycle
         self.trace.clear()
         self.stopped = False
         self.boot_requested = False
@@ -159,6 +168,10 @@ class Machine:
         """Advance exactly one global cycle."""
         if self.stopped:
             return
+        for context in self.contexts:
+            if context.pending_rd is not None and self.cycle >= context.pending_commit:
+                context.write(context.pending_rd, context.pending_val)
+                context.pending_rd = None
         index = self.cycle % len(self.contexts)
         context = self.contexts[index]
         issued = False
@@ -247,7 +260,11 @@ class Machine:
             size = {"LB": 1, "LH": 2, "LW": 4, "LBU": 1, "LHU": 2}[name]
             signed = name in ("LB", "LH", "LW")
             address = (read(fields["rs1"]) + sign_extend(fields["imm16"], 16)) & 0xFFFFFFFF
-            write(fields["rd"], self._load(address, size, signed, context))
+            value = self._load(address, size, signed, context)
+            context.pending_rd = fields["rd"]
+            context.pending_val = value
+            context.pending_commit = self.cycle + 1
+            self._current_writes[fields["rd"]] = value
         elif name in ("SB", "SH", "SW"):
             size = {"SB": 1, "SH": 2, "SW": 4}[name]
             address = (read(fields["rs1"]) + sign_extend(fields["imm16"], 16)) & 0xFFFFFFFF
@@ -293,7 +310,7 @@ class Machine:
             context.waiting = True
             context.wait_pin_mask = mask
             context.wait_has_deadline = timeout != 0
-            context.deadline = timeout
+            context.deadline = self.cycle + timeout
         elif name == "NOP":
             pass
         elif name == "HALT":

@@ -6,7 +6,12 @@ SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = janus_top.sv
+PROJECT_SOURCES = isa_pkg.sv janus_core.sv janus_io.sv janus_imem.sv janus_dmem.sv sram_bb.sv janus_top.sv
+
+# Behavioural model of the IHP SRAM used by RTL simulation.
+SRAM_MODEL = $(PWD)/sram_model/janus_sram_1p.sv
+VERILOG_SOURCES += $(SRAM_MODEL)
+COMPILE_ARGS += -DFUNCTIONAL -DSIM
 
 ifneq ($(GATES),yes)
 
@@ -19,8 +24,6 @@ else
 # Gate level simulation:
 SIM_BUILD				= sim_build/gl
 COMPILE_ARGS    += -DGL_TEST
-COMPILE_ARGS    += -DFUNCTIONAL
-COMPILE_ARGS    += -DSIM
 # Cell models for the PDK in $(PDK) (ihp-sg13cmos5l or ihp-sg13g2), e.g. sg13cmos5l_stdcell.v
 PDK ?= ihp-sg13cmos5l
 PDK_CELL_PREFIX = $(patsubst ihp-%,%,$(PDK))
@@ -29,6 +32,10 @@ VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_io/verilog/$(PDK_CELL_PREF
 # Newer PDK versions ship the UDP (user-defined primitive) models in a separate file
 VERILOG_SOURCES += $(wildcard $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_stdcell/verilog/$(PDK_CELL_PREFIX)_udp.v)
 VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_stdcell/verilog/$(PDK_CELL_PREFIX)_stdcell.v
+# Behavioural models of the SRAM macros instantiated by the netlist.
+VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_sram/verilog/RM_IHPSG13_1P_1024x32_c2_bm_bist.v
+VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_sram/verilog/RM_IHPSG13_1P_512x32_c2_bm_bist.v
+VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_sram/verilog/RM_IHPSG13_1P_core_behavioral_bm_bist.v
 
 # this gets copied in by the GDS action workflow
 VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
