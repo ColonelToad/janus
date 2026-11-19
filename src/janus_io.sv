@@ -27,10 +27,11 @@ module janus_io (
     output logic        boot_req
 );
 
-  import isa_pkg::*;
+  // Constants are written as isa_pkg::NAME rather than imported: the Yosys in
+  // the Tiny Tapeout flow does not parse `import isa_pkg::*;`.
 
-  localparam logic [23:0] OUTPUT_MASK = PIN_OUTPUT_MASK;
-  localparam logic [23:0] BIDIR_MASK  = PIN_BIDIR_MASK;
+  localparam logic [23:0] OUTPUT_MASK = isa_pkg::PIN_OUTPUT_MASK;
+  localparam logic [23:0] BIDIR_MASK  = isa_pkg::PIN_BIDIR_MASK;
   localparam logic [31:0] BOOT_MAGIC  = 32'h4A4E5553;
 
   // Two-flop synchroniser, plus one more stage for edge detection.
@@ -59,7 +60,7 @@ module janus_io (
 
   always @* begin
     edge_next = pin_edge_q | edge_pulse;
-    if (io_we && (io_addr == IO_PIN_EDGE)) begin
+    if (io_we && (io_addr == isa_pkg::IO_PIN_EDGE)) begin
       edge_next &= ~io_wdata[23:0];
     end
   end
@@ -75,12 +76,12 @@ module janus_io (
 
       if (io_we) begin
         case (io_addr)
-          IO_PIN_OUT: pin_out_q <= io_wdata[23:0] & OUTPUT_MASK;
-          IO_PIN_DIR: pin_dir_q <= io_wdata[23:0] & BIDIR_MASK;
-          IO_PIN_SET: pin_out_q <= pin_out_q | (io_wdata[23:0] & OUTPUT_MASK);
-          IO_PIN_CLR: pin_out_q <= pin_out_q & ~(io_wdata[23:0] & OUTPUT_MASK);
-          IO_PIN_XOR: pin_out_q <= pin_out_q ^ (io_wdata[23:0] & OUTPUT_MASK);
-          IO_BOOT_REQ: begin
+          isa_pkg::IO_PIN_OUT: pin_out_q <= io_wdata[23:0] & OUTPUT_MASK;
+          isa_pkg::IO_PIN_DIR: pin_dir_q <= io_wdata[23:0] & BIDIR_MASK;
+          isa_pkg::IO_PIN_SET: pin_out_q <= pin_out_q | (io_wdata[23:0] & OUTPUT_MASK);
+          isa_pkg::IO_PIN_CLR: pin_out_q <= pin_out_q & ~(io_wdata[23:0] & OUTPUT_MASK);
+          isa_pkg::IO_PIN_XOR: pin_out_q <= pin_out_q ^ (io_wdata[23:0] & OUTPUT_MASK);
+          isa_pkg::IO_BOOT_REQ: begin
             if (io_wdata == BOOT_MAGIC) boot_req_q <= 1'b1;
           end
           default: ;
@@ -94,12 +95,12 @@ module janus_io (
       io_rdata_q <= 32'b0;
     end else if (io_re) begin
       case (io_addr)
-        IO_CYCLE:    io_rdata_q <= cycle;
-        IO_PIN_IN:   io_rdata_q <= {8'b0, sync1[23:16], 8'b0, sync1[7:0]};
-        IO_PIN_OUT:  io_rdata_q <= {8'b0, pin_out_q};
-        IO_PIN_DIR:  io_rdata_q <= {8'b0, pin_dir_q};
-        IO_PIN_EDGE: io_rdata_q <= {8'b0, pin_edge_q};
-        IO_CTX_ID:   io_rdata_q <= {31'b0, ctx_id};
+        isa_pkg::IO_CYCLE:    io_rdata_q <= cycle;
+        isa_pkg::IO_PIN_IN:   io_rdata_q <= {8'b0, sync1[23:16], 8'b0, sync1[7:0]};
+        isa_pkg::IO_PIN_OUT:  io_rdata_q <= {8'b0, pin_out_q};
+        isa_pkg::IO_PIN_DIR:  io_rdata_q <= {8'b0, pin_dir_q};
+        isa_pkg::IO_PIN_EDGE: io_rdata_q <= {8'b0, pin_edge_q};
+        isa_pkg::IO_CTX_ID:   io_rdata_q <= {31'b0, ctx_id};
         default:     io_rdata_q <= 32'b0;
       endcase
     end

@@ -35,13 +35,14 @@ module janus_core (
     output logic [31:0] io_wdata,
     input  logic [31:0] io_rdata,
     input  logic [23:0] pin_edge,
-    // global cycle counter (also visible to firmware at IO_CYCLE)
+    // global cycle counter (also visible to firmware at isa_pkg::IO_CYCLE)
     input  logic [31:0] cycle,
     // status
     output logic [1:0]  halted
 );
 
-  import isa_pkg::*;
+  // Constants are written as isa_pkg::NAME rather than imported: the Yosys in
+  // the Tiny Tapeout flow does not parse `import isa_pkg::*;`.
 
   localparam logic [31:0] INPUT_MASK = 32'h00FF_00FF;
 
@@ -109,7 +110,7 @@ module janus_core (
 
   assign ea = regs[cur][instr[19:16]] + imm16;
 
-  wire io_sel = ((ea & 32'hFFFF_FF00) == IO_BASE);
+  wire io_sel = ((ea & 32'hFFFF_FF00) == isa_pkg::IO_BASE);
 
   always @* begin
     next_pc  = pc[cur] + 32'd1;
@@ -133,34 +134,34 @@ module janus_core (
     if (exec) begin
       case (instr[31:24])
         // -- register-register ---------------------------------------------
-        OP_ADD: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] + regs[cur][instr[15:12]]; end
-        OP_SUB: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] - regs[cur][instr[15:12]]; end
-        OP_AND: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] & regs[cur][instr[15:12]]; end
-        OP_OR:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] | regs[cur][instr[15:12]]; end
-        OP_XOR: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] ^ regs[cur][instr[15:12]]; end
-        OP_SLL: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] << regs[cur][instr[15:12]][4:0]; end
-        OP_SRL: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] >> regs[cur][instr[15:12]][4:0]; end
-        OP_SRA: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = $unsigned($signed(regs[cur][instr[19:16]]) >>> regs[cur][instr[15:12]][4:0]); end
-        OP_SLT: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, $signed(regs[cur][instr[19:16]]) < $signed(regs[cur][instr[15:12]])}; end
-        OP_SLTU: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, regs[cur][instr[19:16]] < regs[cur][instr[15:12]]}; end
-        OP_NOT: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = ~regs[cur][instr[19:16]]; end
+        isa_pkg::OP_ADD: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] + regs[cur][instr[15:12]]; end
+        isa_pkg::OP_SUB: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] - regs[cur][instr[15:12]]; end
+        isa_pkg::OP_AND: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] & regs[cur][instr[15:12]]; end
+        isa_pkg::OP_OR:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] | regs[cur][instr[15:12]]; end
+        isa_pkg::OP_XOR: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] ^ regs[cur][instr[15:12]]; end
+        isa_pkg::OP_SLL: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] << regs[cur][instr[15:12]][4:0]; end
+        isa_pkg::OP_SRL: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] >> regs[cur][instr[15:12]][4:0]; end
+        isa_pkg::OP_SRA: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = $unsigned($signed(regs[cur][instr[19:16]]) >>> regs[cur][instr[15:12]][4:0]); end
+        isa_pkg::OP_SLT: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, $signed(regs[cur][instr[19:16]]) < $signed(regs[cur][instr[15:12]])}; end
+        isa_pkg::OP_SLTU: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, regs[cur][instr[19:16]] < regs[cur][instr[15:12]]}; end
+        isa_pkg::OP_NOT: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = ~regs[cur][instr[19:16]]; end
 
         // -- immediate ------------------------------------------------------
-        OP_ADDI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] + imm16; end
-        OP_ANDI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] & {16'b0, instr[15:0]}; end
-        OP_ORI:   begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] | {16'b0, instr[15:0]}; end
-        OP_XORI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] ^ {16'b0, instr[15:0]}; end
-        OP_SLTI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, $signed(regs[cur][instr[19:16]]) < $signed(imm16)}; end
-        OP_SLTIU: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, regs[cur][instr[19:16]] < imm16}; end
-        OP_LI:    begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {16'b0, instr[15:0]}; end
-        OP_LUI:   begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {instr[15:0], 16'b0}; end
+        isa_pkg::OP_ADDI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] + imm16; end
+        isa_pkg::OP_ANDI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] & {16'b0, instr[15:0]}; end
+        isa_pkg::OP_ORI:   begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] | {16'b0, instr[15:0]}; end
+        isa_pkg::OP_XORI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] ^ {16'b0, instr[15:0]}; end
+        isa_pkg::OP_SLTI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, $signed(regs[cur][instr[19:16]]) < $signed(imm16)}; end
+        isa_pkg::OP_SLTIU: begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {31'b0, regs[cur][instr[19:16]] < imm16}; end
+        isa_pkg::OP_LI:    begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {16'b0, instr[15:0]}; end
+        isa_pkg::OP_LUI:   begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = {instr[15:0], 16'b0}; end
 
-        OP_SLLI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] << shamt; end
-        OP_SRLI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] >> shamt; end
-        OP_SRAI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = $unsigned($signed(regs[cur][instr[19:16]]) >>> shamt); end
+        isa_pkg::OP_SLLI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] << shamt; end
+        isa_pkg::OP_SRLI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = regs[cur][instr[19:16]] >> shamt; end
+        isa_pkg::OP_SRAI:  begin rf_we = 1'b1; rf_rd = instr[23:20]; rf_val = $unsigned($signed(regs[cur][instr[19:16]]) >>> shamt); end
 
         // -- loads ----------------------------------------------------------
-        OP_LB, OP_LH, OP_LW, OP_LBU, OP_LHU: begin
+        isa_pkg::OP_LB, isa_pkg::OP_LH, isa_pkg::OP_LW, isa_pkg::OP_LBU, isa_pkg::OP_LHU: begin
           if (io_sel) begin
             io_re  = 1'b1;
             io_addr = ea;
@@ -172,7 +173,7 @@ module janus_core (
         end
 
         // -- stores ---------------------------------------------------------
-        OP_SB: begin
+        isa_pkg::OP_SB: begin
           if (io_sel) begin
             io_we = 1'b1; io_addr = ea; io_wdata = regs[cur][instr[23:20]];
           end else begin
@@ -181,7 +182,7 @@ module janus_core (
             dmem_bm  = 32'h0000_00FF << (8 * ea[1:0]);
           end
         end
-        OP_SH: begin
+        isa_pkg::OP_SH: begin
           if (io_sel) begin
             io_we = 1'b1; io_addr = ea; io_wdata = regs[cur][instr[23:20]];
           end else begin
@@ -190,7 +191,7 @@ module janus_core (
             dmem_bm  = 32'h0000_FFFF << (16 * ea[1]);
           end
         end
-        OP_SW: begin
+        isa_pkg::OP_SW: begin
           if (io_sel) begin
             io_we = 1'b1; io_addr = ea; io_wdata = regs[cur][instr[23:20]];
           end else begin
@@ -201,29 +202,29 @@ module janus_core (
         end
 
         // -- control flow ---------------------------------------------------
-        OP_BEQ:  if (regs[cur][instr[23:20]] == regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
-        OP_BNE:  if (regs[cur][instr[23:20]] != regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
-        OP_BLT:  if ($signed(regs[cur][instr[23:20]]) < $signed(regs[cur][instr[19:16]])) next_pc = pc[cur] + imm16;
-        OP_BGE:  if ($signed(regs[cur][instr[23:20]]) >= $signed(regs[cur][instr[19:16]])) next_pc = pc[cur] + imm16;
-        OP_BLTU: if (regs[cur][instr[23:20]] < regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
-        OP_BGEU: if (regs[cur][instr[23:20]] >= regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BEQ:  if (regs[cur][instr[23:20]] == regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BNE:  if (regs[cur][instr[23:20]] != regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BLT:  if ($signed(regs[cur][instr[23:20]]) < $signed(regs[cur][instr[19:16]])) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BGE:  if ($signed(regs[cur][instr[23:20]]) >= $signed(regs[cur][instr[19:16]])) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BLTU: if (regs[cur][instr[23:20]] < regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
+        isa_pkg::OP_BGEU: if (regs[cur][instr[23:20]] >= regs[cur][instr[19:16]]) next_pc = pc[cur] + imm16;
 
-        OP_JMP:  next_pc = pc[cur] + imm20;
-        OP_CALL: begin
+        isa_pkg::OP_JMP:  next_pc = pc[cur] + imm20;
+        isa_pkg::OP_CALL: begin
           rf_we  = 1'b1;
           rf_rd  = instr[23:20];
           rf_val = pc[cur] + 32'd1;
           next_pc = pc[cur] + imm20;
         end
-        OP_JR:   next_pc = regs[cur][instr[19:16]];
+        isa_pkg::OP_JR:   next_pc = regs[cur][instr[19:16]];
 
         // -- waits ----------------------------------------------------------
-        OP_WAITABS: start_wait = 1'b1;
-        OP_WAITREL: start_wait = 1'b1;
-        OP_WAITPIN: start_wait = 1'b1;
+        isa_pkg::OP_WAITABS: start_wait = 1'b1;
+        isa_pkg::OP_WAITREL: start_wait = 1'b1;
+        isa_pkg::OP_WAITPIN: start_wait = 1'b1;
 
-        OP_NOP:  ;
-        OP_HALT: ;
+        isa_pkg::OP_NOP:  ;
+        isa_pkg::OP_HALT: ;
         default: ;
       endcase
     end
@@ -290,16 +291,16 @@ module janus_core (
       // Tag the access issued this cycle for the return path.
       dly_fetch     <= do_fetch;
       dly_fetch_ctx <= cur;
-      dly_load      <= exec && (instr[31:24] == OP_LB || instr[31:24] == OP_LH ||
-                                instr[31:24] == OP_LW || instr[31:24] == OP_LBU ||
-                                instr[31:24] == OP_LHU);
+      dly_load      <= exec && (instr[31:24] == isa_pkg::OP_LB || instr[31:24] == isa_pkg::OP_LH ||
+                                instr[31:24] == isa_pkg::OP_LW || instr[31:24] == isa_pkg::OP_LBU ||
+                                instr[31:24] == isa_pkg::OP_LHU);
       dly_load_ctx  <= cur;
       dly_load_io   <= io_sel;
       dly_load_rd   <= instr[23:20];
-      dly_load_size <= (instr[31:24] == OP_LB || instr[31:24] == OP_LBU) ? 2'd1 :
-                       (instr[31:24] == OP_LH || instr[31:24] == OP_LHU) ? 2'd2 : 2'd3;
-      dly_load_signed <= (instr[31:24] == OP_LB) || (instr[31:24] == OP_LH) ||
-                         (instr[31:24] == OP_LW);
+      dly_load_size <= (instr[31:24] == isa_pkg::OP_LB || instr[31:24] == isa_pkg::OP_LBU) ? 2'd1 :
+                       (instr[31:24] == isa_pkg::OP_LH || instr[31:24] == isa_pkg::OP_LHU) ? 2'd2 : 2'd3;
+      dly_load_signed <= (instr[31:24] == isa_pkg::OP_LB) || (instr[31:24] == isa_pkg::OP_LH) ||
+                         (instr[31:24] == isa_pkg::OP_LW);
       dly_load_off  <= ea[1:0];
 
       // Return path: instruction fetch, then load writeback. Both belong to
@@ -323,25 +324,25 @@ module janus_core (
         end
 
         case (instr[31:24])
-          OP_WAITABS: begin
+          isa_pkg::OP_WAITABS: begin
             waiting[cur]    <= 1'b1;
             dl_en[cur]      <= 1'b1;
             deadline[cur]   <= regs[cur][instr[19:16]];
             wait_mask[cur]  <= 32'd0;
           end
-          OP_WAITREL: begin
+          isa_pkg::OP_WAITREL: begin
             waiting[cur]    <= 1'b1;
             dl_en[cur]      <= 1'b1;
             deadline[cur]   <= cycle + regs[cur][instr[19:16]];
             wait_mask[cur]  <= 32'd0;
           end
-          OP_WAITPIN: begin
+          isa_pkg::OP_WAITPIN: begin
             waiting[cur]    <= 1'b1;
             dl_en[cur]      <= regs[cur][instr[15:12]] != 32'd0;
             deadline[cur]   <= cycle + regs[cur][instr[15:12]];
             wait_mask[cur]  <= regs[cur][instr[19:16]] & INPUT_MASK;
           end
-          OP_HALT: begin
+          isa_pkg::OP_HALT: begin
             is_halt[cur] <= 1'b1;
           end
           default: waiting[cur] <= 1'b0;
